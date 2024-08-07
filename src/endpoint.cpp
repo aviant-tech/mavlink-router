@@ -470,6 +470,13 @@ void Endpoint::_add_sys_comp_id(uint8_t sysid, uint8_t compid)
         log_info("Sniffer sysid %u identified. [%d] is now sniffing all messages",
                  sniffer_sysid,
                  fd);
+    } else {
+        log_info("%s Endpoint [%d]%s: discovered source %u/%u",
+                    _type.c_str(),
+                    fd,
+                    _name.c_str(),
+                    sysid,
+                    compid);
     }
     _sys_comp_ids.push_back(sys_comp_id);
 
