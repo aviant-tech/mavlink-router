@@ -46,6 +46,7 @@ struct LogOptions {
     unsigned long max_log_files;                  // conf "MaxLogFiles"
     int fcu_id{-1};                               // conf "LogSystemId"
     bool log_telemetry{false};                    // conf "LogTelemetry"
+    bool telemetry_ignore_logging_data{false};    // conf "TelemetryIgnoreLoggingData"
 };
 
 class LogEndpoint : public Endpoint {

@@ -65,6 +65,13 @@ int TLog::write_msg(const struct buffer *buffer)
     /* Check if we should start or stop logging */
     _handle_auto_start_stop(buffer);
 
+    if (_config.telemetry_ignore_logging_data) {
+        // Silently ignore LOGGING_DATA MAVLink messages here, if configured.
+        if (buffer->curr.msg_id == MAVLINK_MSG_ID_LOGGING_DATA) return buffer->len;
+        if (buffer->curr.msg_id == MAVLINK_MSG_ID_LOGGING_DATA_ACKED) return buffer->len;
+        if (buffer->curr.msg_id == MAVLINK_MSG_ID_LOGGING_ACK) return buffer->len;
+    }
+
     uint64_t ms_since_epoch = std::chrono::duration_cast<std::chrono::microseconds>(
                                   std::chrono::system_clock::now().time_since_epoch())
                                   .count();

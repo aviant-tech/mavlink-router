@@ -94,6 +94,12 @@
 # Default: <false>
 # LogTelemetry = false
 
+# Exclude MAVLink messages LOGGING_DATA, LOGGING_DATA_ACKED and LOGGING_ACK
+# from the telemetry log.
+# Valid values: <true>, <false>
+# Default: <false>
+# TelemetryIgnoreLoggingData = false
+
 
 ##
 ## UART Endpoint Configurations
