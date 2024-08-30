@@ -29,7 +29,6 @@ public:
     }
 
     bool start() override;
-    void stop() override;
 
     int write_msg(const struct buffer *pbuf) override;
     int flush_pending_msgs() override { return -ENOSYS; }

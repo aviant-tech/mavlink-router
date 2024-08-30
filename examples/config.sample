@@ -77,6 +77,12 @@
 # Default: 1000
 #LogStartDelayMs = 1000
 
+# Delay in milliseconds from sending a stop log request until closing the file.
+# Only relevant for log types that will send this request.
+# The file may be closed earlier if confirmation is received from the autopilot.
+# Default: 1000
+#LogCloseDelayMs = 1000
+
 # Auto-delete old log files until there's at least the configured amount of
 # bytes free on the storage device. Set to 0 to disable this functionality.
 # Default: 0 (disabled)

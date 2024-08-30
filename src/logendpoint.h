@@ -45,6 +45,7 @@ struct LogOptions {
     LogMode log_mode{LogMode::always};                 // conf "LogMode"
     MavDialect mavlink_dialect{MavDialect::Auto};      // conf "MavlinkDialect"
     unsigned long log_start_delay_ms{1000};            // conf "LogStartDelayMs"
+    unsigned long log_close_delay_ms{1000};            // conf "LogCloseDelayMs"
     unsigned long min_free_space;                      // conf "MinFreeSpace"
     unsigned long max_log_files;                       // conf "MaxLogFiles"
     int fcu_id{-1};                                    // conf "LogSystemId"
@@ -58,7 +59,9 @@ public:
     LogEndpoint(std::string name, LogOptions conf);
 
     virtual bool start();
-    virtual void stop();
+    void stop();
+    virtual unsigned long _pre_stop() { return 0; }
+    virtual bool _post_stop();
 
     /**
      * Check existing log files and mark logs as read-only if needed.
@@ -80,6 +83,7 @@ protected:
 
     struct {
         Timeout *logging_start = nullptr;
+        Timeout *logging_close = nullptr;
         Timeout *fsync = nullptr;
         Timeout *alive = nullptr;
     } _timeout;

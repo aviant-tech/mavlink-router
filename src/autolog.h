@@ -33,7 +33,9 @@ public:
     int flush_pending_msgs() override { return -ENOSYS; }
 
     bool start() override;
-    void stop() override;
+    unsigned long _pre_stop() override;
+    bool _post_stop() override;
+
     void print_statistics() override;
 
 protected:

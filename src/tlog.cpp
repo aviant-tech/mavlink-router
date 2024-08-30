@@ -37,21 +37,7 @@ bool TLog::_logging_start_timeout()
 
 bool TLog::start()
 {
-    if (!LogEndpoint::start()) {
-        return false;
-    }
-
-    return true;
-}
-
-void TLog::stop()
-{
-    if (_file == -1) {
-        log_info("TLog not started");
-        return;
-    }
-
-    LogEndpoint::stop();
+    return LogEndpoint::start();
 }
 
 int TLog::write_msg(const struct buffer *buffer)

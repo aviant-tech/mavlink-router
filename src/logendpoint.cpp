@@ -51,6 +51,7 @@ const ConfFile::OptionsTable LogEndpoint::option_table[] = {
     {"LogMode",                    false, LogEndpoint::parse_log_mode,         OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_mode)},
     {"MavlinkDialect",             false, LogEndpoint::parse_mavlink_dialect,  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, mavlink_dialect)},
     {"LogStartDelayMs",            false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_start_delay_ms)},
+    {"LogCloseDelayMs",            false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_close_delay_ms)},
     {"MinFreeSpace",               false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, min_free_space)},
     {"MaxLogFiles",                false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, max_log_files)},
     {"LogSystemId",                false, LogEndpoint::parse_fcu_id,           OPTIONS_TABLE_STRUCT_FIELD(LogOptions, fcu_id)},
@@ -361,12 +362,22 @@ int LogEndpoint::_get_file(const char *extension)
     return -EEXIST;
 }
 
-void LogEndpoint::stop()
+bool LogEndpoint::_post_stop()
 {
+    if (_file == -1) {
+        log_info("Log not started");
+        return false;  // False for do not reschedule
+    }
+
     Mainloop &mainloop = Mainloop::get_instance();
     if (_timeout.logging_start) {
         mainloop.del_timeout(_timeout.logging_start);
         _timeout.logging_start = nullptr;
+    }
+
+    if (_timeout.logging_close) {
+        mainloop.del_timeout(_timeout.logging_close);
+        _timeout.logging_close = nullptr;
     }
 
     if (_timeout.alive) {
@@ -391,6 +402,27 @@ void LogEndpoint::stop()
         chmod(log_file, S_IRUSR | S_IRGRP | S_IROTH);
     }
     log_info("Finished logging to %s", _filename);
+    return false;  // False for do not reschedule
+}
+
+void LogEndpoint::stop()
+{
+    log_info("Preparing to stop logging to %s", _filename);
+    unsigned long timeout = _pre_stop();
+    if (timeout > 0) {
+        _timeout.logging_close = Mainloop::get_instance().add_timeout(
+            timeout,
+            std::bind(&LogEndpoint::_post_stop, this),
+            this);
+        if (!_timeout.logging_close) {
+            log_error("Unable to add timeout for stop");
+        }
+    }
+
+    // For both no timeout, or failure to setup timeout, call at once
+    if (!_timeout.logging_close) {
+        _post_stop();
+    }
 }
 
 bool LogEndpoint::start()
@@ -445,7 +477,7 @@ bool LogEndpoint::_alive_timeout()
     if (_timeout_write_total == _stat.write.total) {
         log_warning("No Log messages received in %u seconds restarting Log...", ALIVE_TIMEOUT);
         stop();
-        start();
+        // start() will be handled by _handle_auto_start_stop() later
     }
 
     _timeout_write_total = _stat.write.total;
