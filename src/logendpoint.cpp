@@ -205,6 +205,10 @@ void LogEndpoint::_delete_old_logs()
                 // is still being used (not read-only), it should not be deleted.
                 if (!S_ISDIR(file_stat.st_mode) && !(file_stat.st_mode & S_IWUSR)) {
                     std::string str(ent->d_name);
+                    // Use a low index for empty files, and a high one for non-empty.
+                    // This causes empty files to be deleted first, even if
+                    // older non-empty files exists.
+                    if (file_stat.st_size != 0) idx += 0x80000000;
                     file_map[idx] = std::make_tuple(str, file_stat.st_size);
                 }
             }
