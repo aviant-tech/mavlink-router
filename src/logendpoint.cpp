@@ -50,6 +50,7 @@ const ConfFile::OptionsTable LogEndpoint::option_table[] = {
     {"Log",                        false, ConfFile::parse_stdstring,           OPTIONS_TABLE_STRUCT_FIELD(LogOptions, logs_dir)},
     {"LogMode",                    false, LogEndpoint::parse_log_mode,         OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_mode)},
     {"MavlinkDialect",             false, LogEndpoint::parse_mavlink_dialect,  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, mavlink_dialect)},
+    {"LogStartDelayMs",            false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_start_delay_ms)},
     {"MinFreeSpace",               false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, min_free_space)},
     {"MaxLogFiles",                false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, max_log_files)},
     {"LogSystemId",                false, LogEndpoint::parse_fcu_id,           OPTIONS_TABLE_STRUCT_FIELD(LogOptions, fcu_id)},
@@ -389,6 +390,7 @@ void LogEndpoint::stop()
         < (int)sizeof(log_file)) {
         chmod(log_file, S_IRUSR | S_IRGRP | S_IROTH);
     }
+    log_info("Finished logging to %s", _filename);
 }
 
 bool LogEndpoint::start()
@@ -408,7 +410,7 @@ bool LogEndpoint::start()
     }
 
     _timeout.logging_start = Mainloop::get_instance().add_timeout(
-        MSEC_PER_SEC,
+        _config.log_start_delay_ms,
         std::bind(&LogEndpoint::_logging_start_timeout, this),
         this);
     if (!_timeout.logging_start) {

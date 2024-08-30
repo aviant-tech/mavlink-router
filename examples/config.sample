@@ -72,6 +72,11 @@
 # No default value.
 #LogSystemId = 
 
+# Delay in milliseconds from opening a log file until sending
+# a request to start streaming logs to the autopilot.
+# Default: 1000
+#LogStartDelayMs = 1000
+
 # Auto-delete old log files until there's at least the configured amount of
 # bytes free on the storage device. Set to 0 to disable this functionality.
 # Default: 0 (disabled)
