@@ -77,6 +77,11 @@
 # Default: 1000
 #LogStartDelayMs = 1000
 
+# Delay in milliseconds from disarm until stop logging.
+# Only relevant for LogMode "while-armed" and "always-reset-disarm".
+# Default: 0
+#LogStopDelayMs = 0
+
 # Delay in milliseconds from sending a stop log request until closing the file.
 # Only relevant for log types that will send this request.
 # The file may be closed earlier if confirmation is received from the autopilot.

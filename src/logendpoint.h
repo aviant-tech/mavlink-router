@@ -45,6 +45,7 @@ struct LogOptions {
     LogMode log_mode{LogMode::always};                 // conf "LogMode"
     MavDialect mavlink_dialect{MavDialect::Auto};      // conf "MavlinkDialect"
     unsigned long log_start_delay_ms{1000};            // conf "LogStartDelayMs"
+    unsigned long log_stop_delay_ms{0};                // conf "LogStopDelayMs"
     unsigned long log_close_delay_ms{1000};            // conf "LogCloseDelayMs"
     unsigned long min_free_space;                      // conf "MinFreeSpace"
     unsigned long max_log_files;                       // conf "MaxLogFiles"
@@ -83,6 +84,7 @@ protected:
 
     struct {
         Timeout *logging_start = nullptr;
+        Timeout *logging_stop = nullptr;
         Timeout *logging_close = nullptr;
         Timeout *fsync = nullptr;
         Timeout *alive = nullptr;
@@ -100,6 +102,7 @@ protected:
     virtual bool _alive_timeout();
 
     bool _fsync();
+    bool _logging_stop_timeout();
 
     void _handle_auto_start_stop(const struct buffer *pbuf);
 

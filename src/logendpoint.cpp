@@ -51,6 +51,7 @@ const ConfFile::OptionsTable LogEndpoint::option_table[] = {
     {"LogMode",                    false, LogEndpoint::parse_log_mode,         OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_mode)},
     {"MavlinkDialect",             false, LogEndpoint::parse_mavlink_dialect,  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, mavlink_dialect)},
     {"LogStartDelayMs",            false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_start_delay_ms)},
+    {"LogStopDelayMs",             false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_stop_delay_ms)},
     {"LogCloseDelayMs",            false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_close_delay_ms)},
     {"MinFreeSpace",               false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, min_free_space)},
     {"MaxLogFiles",                false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, max_log_files)},
@@ -423,6 +424,18 @@ void LogEndpoint::stop()
     if (!_timeout.logging_close) {
         _post_stop();
     }
+
+    // Remove stop timeout, if used
+    if (_timeout.logging_stop) {
+        Mainloop::get_instance().del_timeout(_timeout.logging_stop);
+        _timeout.logging_stop = nullptr;
+    }
+}
+
+bool LogEndpoint::_logging_stop_timeout()
+{
+    stop();
+    return false;  // false for do not reschedule
 }
 
 bool LogEndpoint::start()
@@ -549,13 +562,40 @@ void LogEndpoint::_handle_auto_start_stop(const struct buffer *pbuf)
     const mavlink_heartbeat_t *heartbeat = (mavlink_heartbeat_t *)pbuf->curr.payload;
     const bool is_armed = heartbeat->base_mode & MAV_MODE_FLAG_SAFETY_ARMED;
 
-    // Stop the log if logging while armed and is not disarmed
-    // OR if reset log on disarm mode, and just transitioned to disarm
-    if (_file != -1 && !is_armed) {
-        if (_get_log_mode() == LogMode::while_armed
-            || (_get_log_mode() == LogMode::always_reset_disarm && _last_armed)) {
+    // Stop the log if logging while armed and is now disarmed
+    // OR if reset log on disarm mode, and just transitioned to disarm,
+    // but do not do anything if a stop timeout is already running.
+    const bool should_stop_logging = _file != -1 && !is_armed &&
+        (_get_log_mode() == LogMode::while_armed ||
+            (_get_log_mode() == LogMode::always_reset_disarm && _last_armed));
+    const bool stop_in_progress = _timeout.logging_stop || _timeout.logging_close;
+
+    if (should_stop_logging && !stop_in_progress) {
+        if (_config.log_stop_delay_ms > 0) {
+            log_info("Delaying stop of %s by %lu ms", _filename, _config.log_stop_delay_ms);
+            _timeout.logging_stop = Mainloop::get_instance().add_timeout(
+                _config.log_stop_delay_ms,
+                std::bind(&LogEndpoint::_logging_stop_timeout, this),
+                this);
+            if (!_timeout.logging_stop) {
+                log_error("Unable to add timeout for logging after disarm");
+            }
+        }
+        if (!_timeout.logging_stop) {
+            // Stop at once if no delay is configured,
+            // or if an error stopped the timeout from being added.
             stop();
         }
+    }
+
+    // If armed, abort any delayed log stop that may be scheduled
+    // Note: we do not abort if the "logging_close" timeout is running,
+    // in this case we need to finish stopping the log and closing the file,
+    // and then restart.
+    if (is_armed && _timeout.logging_stop) {
+        log_info("Aborting stop of %s since ARMED is received", _filename);
+        Mainloop::get_instance().del_timeout(_timeout.logging_stop);
+        _timeout.logging_stop = nullptr;
     }
 
     // Start the log if armed, or if reset on disarm mode
