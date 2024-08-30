@@ -51,6 +51,8 @@ bool ULog::_logging_start_timeout()
 
     mavlink_msg_command_long_encode(LOG_ENDPOINT_SYSTEM_ID, MAV_COMP_ID_ALL, &msg, &cmd);
     _send_msg(&msg, _target_system_id);
+    log_info("ULog: Sent request to autopilot to start streaming log");
+    _logging_started = true;
 
     return true;
 }
@@ -67,6 +69,8 @@ bool ULog::start()
     _buffer_len = 0;
     _buffer_index = 0;
     _buffer_partial_len = 0;
+
+    _logging_started = false;  // Will be set to true when request is sent to autopilot
 
     return true;
 }
@@ -113,6 +117,14 @@ int ULog::write_msg(const struct buffer *buffer)
 
     /* Check if we should start or stop logging */
     _handle_auto_start_stop(buffer);
+
+    /* All further processing is skipped if log file is not open,
+     * or request to start logging is not sent to the autopilot yet.
+     * Typically, we do not want to process/write
+     * unexpected logging messages (delayed, requested by other component). */
+    if (_file == -1 || !_logging_started) {
+        return buffer->len;
+    }
 
     /* Check if we are interested in this msg_id */
     if (buffer->curr.msg_id != MAVLINK_MSG_ID_COMMAND_ACK
