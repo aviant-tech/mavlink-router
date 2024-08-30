@@ -54,6 +54,7 @@ const ConfFile::OptionsTable LogEndpoint::option_table[] = {
     {"MaxLogFiles",                false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, max_log_files)},
     {"LogSystemId",                false, LogEndpoint::parse_fcu_id,           OPTIONS_TABLE_STRUCT_FIELD(LogOptions, fcu_id)},
     {"LogTelemetry",               false, ConfFile::parse_bool,                OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_telemetry)},
+    {"TelemetryLogMode",           false, LogEndpoint::parse_log_mode,         OPTIONS_TABLE_STRUCT_FIELD(LogOptions, telemetry_log_mode)},
     {"TelemetryIgnoreLoggingData", false, ConfFile::parse_bool,                OPTIONS_TABLE_STRUCT_FIELD(LogOptions, telemetry_ignore_logging_data)},
     {}
 };
@@ -489,15 +490,15 @@ void LogEndpoint::_handle_auto_start_stop(const struct buffer *pbuf)
         return;
     }
 
-    if (_config.log_mode == LogMode::disabled) {
+    if (_get_log_mode() == LogMode::disabled) {
         return;
     }
 
-    if (_config.log_mode == LogMode::always) {
+    if (_get_log_mode() == LogMode::always) {
         if (_file == -1) {
             if (!start()) {
                 log_error("Unable to start %s, disabling log type", _get_logfile_extension());
-                _config.log_mode = LogMode::disabled;
+                _set_log_mode(LogMode::disabled);
             }
         }
 
@@ -517,17 +518,17 @@ void LogEndpoint::_handle_auto_start_stop(const struct buffer *pbuf)
     // Stop the log if logging while armed and is not disarmed
     // OR if reset log on disarm mode, and just transitioned to disarm
     if (_file != -1 && !is_armed) {
-        if (_config.log_mode == LogMode::while_armed
-            || (_config.log_mode == LogMode::always_reset_disarm && _last_armed)) {
+        if (_get_log_mode() == LogMode::while_armed
+            || (_get_log_mode() == LogMode::always_reset_disarm && _last_armed)) {
             stop();
         }
     }
 
     // Start the log if armed, or if reset on disarm mode
-    if (_file == -1 && (is_armed || _config.log_mode == LogMode::always_reset_disarm)) {
+    if (_file == -1 && (is_armed || _get_log_mode() == LogMode::always_reset_disarm)) {
         if (!start()) {
             log_error("Unable to start %s, disabling log type", _get_logfile_extension());
-            _config.log_mode = LogMode::disabled;
+            _set_log_mode(LogMode::disabled);
         }
     }
 

@@ -34,20 +34,23 @@ enum class LogMode {
     while_armed, ///< Start logging when the vehicle is armed until it's disarmed
     always_reset_disarm,  ///< Log always, but rotate file on disarm
 
-    disabled ///< Do not try to start logging (only used internally)
+    disabled, ///< Do not try to start logging (only used internally)
+    default_mode  ///< Use the default mode (only used internally)
 };
 
 struct LogOptions {
     enum class MavDialect { Auto, Common, Ardupilotmega };
 
-    std::string logs_dir;                         // conf "Log" or CLI "log"
-    LogMode log_mode{LogMode::always};            // conf "LogMode"
-    MavDialect mavlink_dialect{MavDialect::Auto}; // conf "MavlinkDialect"
-    unsigned long min_free_space;                 // conf "MinFreeSpace"
-    unsigned long max_log_files;                  // conf "MaxLogFiles"
-    int fcu_id{-1};                               // conf "LogSystemId"
-    bool log_telemetry{false};                    // conf "LogTelemetry"
-    bool telemetry_ignore_logging_data{false};    // conf "TelemetryIgnoreLoggingData"
+    std::string logs_dir;                              // conf "Log" or CLI "log"
+    LogMode log_mode{LogMode::always};                 // conf "LogMode"
+    MavDialect mavlink_dialect{MavDialect::Auto};      // conf "MavlinkDialect"
+    unsigned long log_start_delay_ms{1000};            // conf "LogStartDelayMs"
+    unsigned long min_free_space;                      // conf "MinFreeSpace"
+    unsigned long max_log_files;                       // conf "MaxLogFiles"
+    int fcu_id{-1};                                    // conf "LogSystemId"
+    bool log_telemetry{false};                         // conf "LogTelemetry"
+    LogMode telemetry_log_mode{LogMode::default_mode}; // conf "TelemetryLogMode"
+    bool telemetry_ignore_logging_data{false};         // conf "TelemetryIgnoreLoggingData"
 };
 
 class LogEndpoint : public Endpoint {
@@ -95,6 +98,9 @@ protected:
     bool _fsync();
 
     void _handle_auto_start_stop(const struct buffer *pbuf);
+
+    virtual LogMode _get_log_mode() const { return _config.log_mode; }
+    virtual void _set_log_mode(LogMode log_mode) { _config.log_mode = log_mode; }
 
 private:
     int _get_file(const char *extension);

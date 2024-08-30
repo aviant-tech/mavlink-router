@@ -92,13 +92,18 @@
 # is defined. This also uses LogMode to control the recording.
 # Valid values: <true>, <false>
 # Default: <false>
-# LogTelemetry = false
+#LogTelemetry = false
+
+# Separate LogMode for tlog files.
+# Valid values: <Same as LogMode>
+# Default: <Same as LogMode>
+#TelemetryLogMode = <Same as LogMode>
 
 # Exclude MAVLink messages LOGGING_DATA, LOGGING_DATA_ACKED and LOGGING_ACK
 # from the telemetry log.
 # Valid values: <true>, <false>
 # Default: <false>
-# TelemetryIgnoreLoggingData = false
+#TelemetryIgnoreLoggingData = false
 
 
 ##

@@ -82,3 +82,11 @@ int TLog::write_msg(const struct buffer *buffer)
     write(_file, buffer->data, buffer->len);
     return buffer->len;
 }
+
+LogMode TLog::_get_log_mode() const {
+    if (_config.telemetry_log_mode == LogMode::default_mode) {
+        return _config.log_mode;
+    } else {
+        return _config.telemetry_log_mode;
+    }
+}
