@@ -489,9 +489,14 @@ void LogEndpoint::_handle_auto_start_stop(const struct buffer *pbuf)
         return;
     }
 
+    if (_config.log_mode == LogMode::disabled) {
+        return;
+    }
+
     if (_config.log_mode == LogMode::always) {
         if (_file == -1) {
             if (!start()) {
+                log_error("Unable to start %s, disabling log type", _get_logfile_extension());
                 _config.log_mode = LogMode::disabled;
             }
         }
@@ -499,23 +504,34 @@ void LogEndpoint::_handle_auto_start_stop(const struct buffer *pbuf)
         return;
     }
 
-    if (_config.log_mode == LogMode::while_armed) {
-        if (pbuf->curr.msg_id == MAVLINK_MSG_ID_HEARTBEAT
-            && pbuf->curr.src_sysid == _target_system_id
-            && pbuf->curr.src_compid == MAV_COMP_ID_AUTOPILOT1) {
+    // Other modes uses heartbeat to start/stop logging
+    if (pbuf->curr.msg_id != MAVLINK_MSG_ID_HEARTBEAT 
+        || pbuf->curr.src_sysid != _target_system_id
+        || pbuf->curr.src_compid != MAV_COMP_ID_AUTOPILOT1) {
+        return;
+    }
 
-            const mavlink_heartbeat_t *heartbeat = (mavlink_heartbeat_t *)pbuf->curr.payload;
-            const bool is_armed = heartbeat->base_mode & MAV_MODE_FLAG_SAFETY_ARMED;
+    const mavlink_heartbeat_t *heartbeat = (mavlink_heartbeat_t *)pbuf->curr.payload;
+    const bool is_armed = heartbeat->base_mode & MAV_MODE_FLAG_SAFETY_ARMED;
 
-            if (_file == -1 && is_armed) {
-                if (!start()) {
-                    _config.log_mode = LogMode::disabled;
-                }
-            } else if (_file != -1 && !is_armed) {
-                stop();
-            }
+    // Stop the log if logging while armed and is not disarmed
+    // OR if reset log on disarm mode, and just transitioned to disarm
+    if (_file != -1 && !is_armed) {
+        if (_config.log_mode == LogMode::while_armed
+            || (_config.log_mode == LogMode::always_reset_disarm && _last_armed)) {
+            stop();
         }
     }
+
+    // Start the log if armed, or if reset on disarm mode
+    if (_file == -1 && (is_armed || _config.log_mode == LogMode::always_reset_disarm)) {
+        if (!start()) {
+            log_error("Unable to start %s, disabling log type", _get_logfile_extension());
+            _config.log_mode = LogMode::disabled;
+        }
+    }
+
+    _last_armed = is_armed;
 }
 
 int LogEndpoint::parse_mavlink_dialect(const char *val, size_t val_len, void *storage,
@@ -568,6 +584,8 @@ int LogEndpoint::parse_log_mode(const char *val, size_t val_len, void *storage, 
         log_mode = LogMode::always;
     } else if (strcaseeq(log_mode_str, "while-armed")) {
         log_mode = LogMode::while_armed;
+    } else if (strcaseeq(log_mode_str, "always-reset-disarm")) {
+        log_mode = LogMode::always_reset_disarm;
     } else {
         log_error("Invalid argument for LogMode = %s", log_mode_str);
         return -EINVAL;

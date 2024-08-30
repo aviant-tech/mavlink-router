@@ -63,7 +63,7 @@
 
 # Define when to store flight stack or telemetry logs. From the start of
 # mavlink-router until it's stopped or just while the vehicle is armed.
-# Valid values: <always>, <while-armed>
+# Valid values: <always>, <while-armed>, <always-reset-disarm>
 # Default: <always>
 #LogMode = always
 

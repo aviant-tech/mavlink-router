@@ -32,6 +32,7 @@
 enum class LogMode {
     always = 0,  ///< Log from start until mavlink-router exits
     while_armed, ///< Start logging when the vehicle is armed until it's disarmed
+    always_reset_disarm,  ///< Log always, but rotate file on disarm
 
     disabled ///< Do not try to start logging (only used internally)
 };
@@ -107,4 +108,5 @@ private:
     void _delete_old_logs();
 
     char _filename[64];
+    bool _last_armed = false;
 };
