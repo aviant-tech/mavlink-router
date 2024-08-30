@@ -65,6 +65,11 @@ int TLog::write_msg(const struct buffer *buffer)
     /* Check if we should start or stop logging */
     _handle_auto_start_stop(buffer);
 
+    /* Check if logging is enabled and file is open */
+    if (_file == -1) {
+        return buffer->len;
+    }
+
     if (_config.telemetry_ignore_logging_data) {
         // Silently ignore LOGGING_DATA MAVLink messages here, if configured.
         if (buffer->curr.msg_id == MAVLINK_MSG_ID_LOGGING_DATA) return buffer->len;
