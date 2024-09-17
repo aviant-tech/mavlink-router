@@ -50,10 +50,14 @@ const ConfFile::OptionsTable LogEndpoint::option_table[] = {
     {"Log",                        false, ConfFile::parse_stdstring,           OPTIONS_TABLE_STRUCT_FIELD(LogOptions, logs_dir)},
     {"LogMode",                    false, LogEndpoint::parse_log_mode,         OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_mode)},
     {"MavlinkDialect",             false, LogEndpoint::parse_mavlink_dialect,  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, mavlink_dialect)},
+    {"LogStartDelayMs",            false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_start_delay_ms)},
+    {"LogStopDelayMs",             false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_stop_delay_ms)},
+    {"LogCloseDelayMs",            false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_close_delay_ms)},
     {"MinFreeSpace",               false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, min_free_space)},
     {"MaxLogFiles",                false, ConfFile::parse_ul,                  OPTIONS_TABLE_STRUCT_FIELD(LogOptions, max_log_files)},
     {"LogSystemId",                false, LogEndpoint::parse_fcu_id,           OPTIONS_TABLE_STRUCT_FIELD(LogOptions, fcu_id)},
     {"LogTelemetry",               false, ConfFile::parse_bool,                OPTIONS_TABLE_STRUCT_FIELD(LogOptions, log_telemetry)},
+    {"TelemetryLogMode",           false, LogEndpoint::parse_log_mode,         OPTIONS_TABLE_STRUCT_FIELD(LogOptions, telemetry_log_mode)},
     {"TelemetryIgnoreLoggingData", false, ConfFile::parse_bool,                OPTIONS_TABLE_STRUCT_FIELD(LogOptions, telemetry_ignore_logging_data)},
     {}
 };
@@ -205,6 +209,10 @@ void LogEndpoint::_delete_old_logs()
                 // is still being used (not read-only), it should not be deleted.
                 if (!S_ISDIR(file_stat.st_mode) && !(file_stat.st_mode & S_IWUSR)) {
                     std::string str(ent->d_name);
+                    // Use a low index for empty files, and a high one for non-empty.
+                    // This causes empty files to be deleted first, even if
+                    // older non-empty files exists.
+                    if (file_stat.st_size != 0) idx += 0x80000000;
                     file_map[idx] = std::make_tuple(str, file_stat.st_size);
                 }
             }
@@ -355,12 +363,22 @@ int LogEndpoint::_get_file(const char *extension)
     return -EEXIST;
 }
 
-void LogEndpoint::stop()
+bool LogEndpoint::_post_stop()
 {
+    if (_file == -1) {
+        log_info("Log not started");
+        return false;  // False for do not reschedule
+    }
+
     Mainloop &mainloop = Mainloop::get_instance();
     if (_timeout.logging_start) {
         mainloop.del_timeout(_timeout.logging_start);
         _timeout.logging_start = nullptr;
+    }
+
+    if (_timeout.logging_close) {
+        mainloop.del_timeout(_timeout.logging_close);
+        _timeout.logging_close = nullptr;
     }
 
     if (_timeout.alive) {
@@ -384,6 +402,40 @@ void LogEndpoint::stop()
         < (int)sizeof(log_file)) {
         chmod(log_file, S_IRUSR | S_IRGRP | S_IROTH);
     }
+    log_info("Finished logging to %s", _filename);
+    return false;  // False for do not reschedule
+}
+
+void LogEndpoint::stop()
+{
+    log_info("Preparing to stop logging to %s", _filename);
+    unsigned long timeout = _pre_stop();
+    if (timeout > 0) {
+        _timeout.logging_close = Mainloop::get_instance().add_timeout(
+            timeout,
+            std::bind(&LogEndpoint::_post_stop, this),
+            this);
+        if (!_timeout.logging_close) {
+            log_error("Unable to add timeout for stop");
+        }
+    }
+
+    // For both no timeout, or failure to setup timeout, call at once
+    if (!_timeout.logging_close) {
+        _post_stop();
+    }
+
+    // Remove stop timeout, if used
+    if (_timeout.logging_stop) {
+        Mainloop::get_instance().del_timeout(_timeout.logging_stop);
+        _timeout.logging_stop = nullptr;
+    }
+}
+
+bool LogEndpoint::_logging_stop_timeout()
+{
+    stop();
+    return false;  // false for do not reschedule
 }
 
 bool LogEndpoint::start()
@@ -403,7 +455,7 @@ bool LogEndpoint::start()
     }
 
     _timeout.logging_start = Mainloop::get_instance().add_timeout(
-        MSEC_PER_SEC,
+        _config.log_start_delay_ms,
         std::bind(&LogEndpoint::_logging_start_timeout, this),
         this);
     if (!_timeout.logging_start) {
@@ -438,7 +490,7 @@ bool LogEndpoint::_alive_timeout()
     if (_timeout_write_total == _stat.write.total) {
         log_warning("No Log messages received in %u seconds restarting Log...", ALIVE_TIMEOUT);
         stop();
-        start();
+        // start() will be handled by _handle_auto_start_stop() later
     }
 
     _timeout_write_total = _stat.write.total;
@@ -485,33 +537,76 @@ void LogEndpoint::_handle_auto_start_stop(const struct buffer *pbuf)
         return;
     }
 
-    if (_config.log_mode == LogMode::always) {
+    if (_get_log_mode() == LogMode::disabled) {
+        return;
+    }
+
+    if (_get_log_mode() == LogMode::always) {
         if (_file == -1) {
             if (!start()) {
-                _config.log_mode = LogMode::disabled;
+                log_error("Unable to start %s, disabling log type", _get_logfile_extension());
+                _set_log_mode(LogMode::disabled);
             }
         }
 
         return;
     }
 
-    if (_config.log_mode == LogMode::while_armed) {
-        if (pbuf->curr.msg_id == MAVLINK_MSG_ID_HEARTBEAT
-            && pbuf->curr.src_sysid == _target_system_id
-            && pbuf->curr.src_compid == MAV_COMP_ID_AUTOPILOT1) {
+    // Other modes uses heartbeat to start/stop logging
+    if (pbuf->curr.msg_id != MAVLINK_MSG_ID_HEARTBEAT 
+        || pbuf->curr.src_sysid != _target_system_id
+        || pbuf->curr.src_compid != MAV_COMP_ID_AUTOPILOT1) {
+        return;
+    }
 
-            const mavlink_heartbeat_t *heartbeat = (mavlink_heartbeat_t *)pbuf->curr.payload;
-            const bool is_armed = heartbeat->base_mode & MAV_MODE_FLAG_SAFETY_ARMED;
+    const mavlink_heartbeat_t *heartbeat = (mavlink_heartbeat_t *)pbuf->curr.payload;
+    const bool is_armed = heartbeat->base_mode & MAV_MODE_FLAG_SAFETY_ARMED;
 
-            if (_file == -1 && is_armed) {
-                if (!start()) {
-                    _config.log_mode = LogMode::disabled;
-                }
-            } else if (_file != -1 && !is_armed) {
-                stop();
+    // Stop the log if logging while armed and is now disarmed
+    // OR if reset log on disarm mode, and just transitioned to disarm,
+    // but do not do anything if a stop timeout is already running.
+    const bool should_stop_logging = _file != -1 && !is_armed &&
+        (_get_log_mode() == LogMode::while_armed ||
+            (_get_log_mode() == LogMode::always_reset_disarm && _last_armed));
+    const bool stop_in_progress = _timeout.logging_stop || _timeout.logging_close;
+
+    if (should_stop_logging && !stop_in_progress) {
+        if (_config.log_stop_delay_ms > 0) {
+            log_info("Delaying stop of %s by %lu ms", _filename, _config.log_stop_delay_ms);
+            _timeout.logging_stop = Mainloop::get_instance().add_timeout(
+                _config.log_stop_delay_ms,
+                std::bind(&LogEndpoint::_logging_stop_timeout, this),
+                this);
+            if (!_timeout.logging_stop) {
+                log_error("Unable to add timeout for logging after disarm");
             }
         }
+        if (!_timeout.logging_stop) {
+            // Stop at once if no delay is configured,
+            // or if an error stopped the timeout from being added.
+            stop();
+        }
     }
+
+    // If armed, abort any delayed log stop that may be scheduled
+    // Note: we do not abort if the "logging_close" timeout is running,
+    // in this case we need to finish stopping the log and closing the file,
+    // and then restart.
+    if (is_armed && _timeout.logging_stop) {
+        log_info("Aborting stop of %s since ARMED is received", _filename);
+        Mainloop::get_instance().del_timeout(_timeout.logging_stop);
+        _timeout.logging_stop = nullptr;
+    }
+
+    // Start the log if armed, or if reset on disarm mode
+    if (_file == -1 && (is_armed || _get_log_mode() == LogMode::always_reset_disarm)) {
+        if (!start()) {
+            log_error("Unable to start %s, disabling log type", _get_logfile_extension());
+            _set_log_mode(LogMode::disabled);
+        }
+    }
+
+    _last_armed = is_armed;
 }
 
 int LogEndpoint::parse_mavlink_dialect(const char *val, size_t val_len, void *storage,
@@ -564,6 +659,8 @@ int LogEndpoint::parse_log_mode(const char *val, size_t val_len, void *storage, 
         log_mode = LogMode::always;
     } else if (strcaseeq(log_mode_str, "while-armed")) {
         log_mode = LogMode::while_armed;
+    } else if (strcaseeq(log_mode_str, "always-reset-disarm")) {
+        log_mode = LogMode::always_reset_disarm;
     } else {
         log_error("Invalid argument for LogMode = %s", log_mode_str);
         return -EINVAL;

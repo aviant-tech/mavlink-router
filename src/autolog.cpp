@@ -54,11 +54,20 @@ int AutoLog::write_msg(const struct buffer *buffer)
     return buffer->len;
 }
 
-void AutoLog::stop()
+unsigned long AutoLog::_pre_stop()
 {
     if (_logger) {
-        _logger->stop();
+        return _logger->_pre_stop();
     }
+    return 0;
+}
+
+bool AutoLog::_post_stop()
+{
+    if (_logger) {
+        return _logger->_post_stop();
+    }
+    return false;
 }
 
 bool AutoLog::start()

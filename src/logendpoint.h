@@ -32,21 +32,27 @@
 enum class LogMode {
     always = 0,  ///< Log from start until mavlink-router exits
     while_armed, ///< Start logging when the vehicle is armed until it's disarmed
+    always_reset_disarm,  ///< Log always, but rotate file on disarm
 
-    disabled ///< Do not try to start logging (only used internally)
+    disabled, ///< Do not try to start logging (only used internally)
+    default_mode  ///< Use the default mode (only used internally)
 };
 
 struct LogOptions {
     enum class MavDialect { Auto, Common, Ardupilotmega };
 
-    std::string logs_dir;                         // conf "Log" or CLI "log"
-    LogMode log_mode{LogMode::always};            // conf "LogMode"
-    MavDialect mavlink_dialect{MavDialect::Auto}; // conf "MavlinkDialect"
-    unsigned long min_free_space;                 // conf "MinFreeSpace"
-    unsigned long max_log_files;                  // conf "MaxLogFiles"
-    int fcu_id{-1};                               // conf "LogSystemId"
-    bool log_telemetry{false};                    // conf "LogTelemetry"
-    bool telemetry_ignore_logging_data{false};    // conf "TelemetryIgnoreLoggingData"
+    std::string logs_dir;                              // conf "Log" or CLI "log"
+    LogMode log_mode{LogMode::always};                 // conf "LogMode"
+    MavDialect mavlink_dialect{MavDialect::Auto};      // conf "MavlinkDialect"
+    unsigned long log_start_delay_ms{1000};            // conf "LogStartDelayMs"
+    unsigned long log_stop_delay_ms{0};                // conf "LogStopDelayMs"
+    unsigned long log_close_delay_ms{1000};            // conf "LogCloseDelayMs"
+    unsigned long min_free_space;                      // conf "MinFreeSpace"
+    unsigned long max_log_files;                       // conf "MaxLogFiles"
+    int fcu_id{-1};                                    // conf "LogSystemId"
+    bool log_telemetry{false};                         // conf "LogTelemetry"
+    LogMode telemetry_log_mode{LogMode::default_mode}; // conf "TelemetryLogMode"
+    bool telemetry_ignore_logging_data{false};         // conf "TelemetryIgnoreLoggingData"
 };
 
 class LogEndpoint : public Endpoint {
@@ -54,7 +60,9 @@ public:
     LogEndpoint(std::string name, LogOptions conf);
 
     virtual bool start();
-    virtual void stop();
+    void stop();
+    virtual unsigned long _pre_stop() { return 0; }
+    virtual bool _post_stop();
 
     /**
      * Check existing log files and mark logs as read-only if needed.
@@ -76,6 +84,8 @@ protected:
 
     struct {
         Timeout *logging_start = nullptr;
+        Timeout *logging_stop = nullptr;
+        Timeout *logging_close = nullptr;
         Timeout *fsync = nullptr;
         Timeout *alive = nullptr;
     } _timeout;
@@ -92,8 +102,12 @@ protected:
     virtual bool _alive_timeout();
 
     bool _fsync();
+    bool _logging_stop_timeout();
 
     void _handle_auto_start_stop(const struct buffer *pbuf);
+
+    virtual LogMode _get_log_mode() const { return _config.log_mode; }
+    virtual void _set_log_mode(LogMode log_mode) { _config.log_mode = log_mode; }
 
 private:
     int _get_file(const char *extension);
@@ -107,4 +121,5 @@ private:
     void _delete_old_logs();
 
     char _filename[64];
+    bool _last_armed = false;
 };

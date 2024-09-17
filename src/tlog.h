@@ -29,7 +29,6 @@ public:
     }
 
     bool start() override;
-    void stop() override;
 
     int write_msg(const struct buffer *pbuf) override;
     int flush_pending_msgs() override { return -ENOSYS; }
@@ -39,4 +38,7 @@ protected:
     bool _logging_start_timeout() override;
 
     const char *_get_logfile_extension() override { return "tlog"; };
+
+    LogMode _get_log_mode() const override;
+    void _set_log_mode(LogMode log_mode) override { _config.telemetry_log_mode = log_mode; }
 };

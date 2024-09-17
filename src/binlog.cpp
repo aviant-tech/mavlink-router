@@ -56,16 +56,18 @@ bool BinLog::start()
     return true;
 }
 
-void BinLog::stop()
+unsigned long BinLog::_pre_stop()
 {
     if (_file == -1) {
-        log_info("BinLog not started");
-        return;
+        return 0;
     }
-
     _send_stop();
+    return _config.log_close_delay_ms;
+}
 
-    LogEndpoint::stop();
+bool BinLog::_post_stop()
+{
+    return LogEndpoint::_post_stop();
 }
 
 void BinLog::_send_stop()

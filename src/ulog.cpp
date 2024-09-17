@@ -51,6 +51,8 @@ bool ULog::_logging_start_timeout()
 
     mavlink_msg_command_long_encode(LOG_ENDPOINT_SYSTEM_ID, MAV_COMP_ID_ALL, &msg, &cmd);
     _send_msg(&msg, _target_system_id);
+    log_info("ULog: Sent request to autopilot to start streaming log");
+    _logging_started = true;
 
     return true;
 }
@@ -68,18 +70,19 @@ bool ULog::start()
     _buffer_index = 0;
     _buffer_partial_len = 0;
 
+    _logging_started = false;  // Will be set to true when request is sent to autopilot
+
     return true;
 }
 
-void ULog::stop()
+unsigned long ULog::_pre_stop()
 {
+    if (_file == -1) {
+        return 0;
+    }
+
     mavlink_message_t msg;
     mavlink_command_long_t cmd;
-
-    if (_file == -1) {
-        log_info("ULog not started");
-        return;
-    }
 
     bzero(&cmd, sizeof(cmd));
     cmd.command = MAV_CMD_LOGGING_STOP;
@@ -89,6 +92,11 @@ void ULog::stop()
     mavlink_msg_command_long_encode(LOG_ENDPOINT_SYSTEM_ID, MAV_COMP_ID_ALL, &msg, &cmd);
     _send_msg(&msg, _target_system_id);
 
+    return _config.log_close_delay_ms;
+}
+
+bool ULog::_post_stop()
+{
     _buffer_len = 0;
     /* Write the last partial message to avoid corrupt the end of the file */
     while (_buffer_partial_len) {
@@ -97,7 +105,7 @@ void ULog::stop()
         }
     }
 
-    LogEndpoint::stop();
+    return LogEndpoint::_post_stop();
 }
 
 int ULog::write_msg(const struct buffer *buffer)
@@ -113,6 +121,14 @@ int ULog::write_msg(const struct buffer *buffer)
 
     /* Check if we should start or stop logging */
     _handle_auto_start_stop(buffer);
+
+    /* All further processing is skipped if log file is not open,
+     * or request to start logging is not sent to the autopilot yet.
+     * Typically, we do not want to process/write
+     * unexpected logging messages (delayed, requested by other component). */
+    if (_file == -1 || !_logging_started) {
+        return buffer->len;
+    }
 
     /* Check if we are interested in this msg_id */
     if (buffer->curr.msg_id != MAVLINK_MSG_ID_COMMAND_ACK
@@ -147,18 +163,20 @@ int ULog::write_msg(const struct buffer *buffer)
             memset(((uint8_t *)&cmd) + payload_len, 0, trimmed_zeros);
         }
 
-        if (!_timeout.logging_start || cmd.command != MAV_CMD_LOGGING_START) {
-            return buffer->len;
-        }
-
-        if (cmd.result == MAV_RESULT_ACCEPTED) {
-            _remove_logging_start_timeout();
-            if (!_start_alive_timeout()) {
-                log_warning("Could not start liveness timeout - mavlink router log won't be able "
-                            "to detect if flight stack stopped");
+        if (_timeout.logging_start && cmd.command == MAV_CMD_LOGGING_START) {
+            if (cmd.result == MAV_RESULT_ACCEPTED) {
+                _remove_logging_start_timeout();
+                if (!_start_alive_timeout()) {
+                    log_warning("Could not start liveness timeout - mavlink router log won't be able "
+                                "to detect if flight stack stopped");
+                }
+            } else {
+                log_error("MAV_CMD_LOGGING_START result(%u) is different than accepted", cmd.result);
             }
+        } else if (cmd.command == MAV_CMD_LOGGING_STOP && cmd.result == MAV_RESULT_ACCEPTED) {
+            _post_stop();
         } else {
-            log_error("MAV_CMD_LOGGING_START result(%u) is different than accepted", cmd.result);
+            return buffer->len;
         }
         break;
     }

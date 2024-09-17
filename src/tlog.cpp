@@ -37,21 +37,7 @@ bool TLog::_logging_start_timeout()
 
 bool TLog::start()
 {
-    if (!LogEndpoint::start()) {
-        return false;
-    }
-
-    return true;
-}
-
-void TLog::stop()
-{
-    if (_file == -1) {
-        log_info("TLog not started");
-        return;
-    }
-
-    LogEndpoint::stop();
+    return LogEndpoint::start();
 }
 
 int TLog::write_msg(const struct buffer *buffer)
@@ -64,6 +50,11 @@ int TLog::write_msg(const struct buffer *buffer)
 
     /* Check if we should start or stop logging */
     _handle_auto_start_stop(buffer);
+
+    /* Check if logging is enabled and file is open */
+    if (_file == -1) {
+        return buffer->len;
+    }
 
     if (_config.telemetry_ignore_logging_data) {
         // Silently ignore LOGGING_DATA MAVLink messages here, if configured.
@@ -81,4 +72,12 @@ int TLog::write_msg(const struct buffer *buffer)
     write(_file, (void *)&ms_since_epoch, sizeof(uint64_t));
     write(_file, buffer->data, buffer->len);
     return buffer->len;
+}
+
+LogMode TLog::_get_log_mode() const {
+    if (_config.telemetry_log_mode == LogMode::default_mode) {
+        return _config.log_mode;
+    } else {
+        return _config.telemetry_log_mode;
+    }
 }

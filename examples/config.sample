@@ -63,7 +63,7 @@
 
 # Define when to store flight stack or telemetry logs. From the start of
 # mavlink-router until it's stopped or just while the vehicle is armed.
-# Valid values: <always>, <while-armed>
+# Valid values: <always>, <while-armed>, <always-reset-disarm>
 # Default: <always>
 #LogMode = always
 
@@ -71,6 +71,22 @@
 # will be set to the system ID of the first flight stack heartbeat received.
 # No default value.
 #LogSystemId = 
+
+# Delay in milliseconds from opening a log file until sending
+# a request to start streaming logs to the autopilot.
+# Default: 1000
+#LogStartDelayMs = 1000
+
+# Delay in milliseconds from disarm until stop logging.
+# Only relevant for LogMode "while-armed" and "always-reset-disarm".
+# Default: 0
+#LogStopDelayMs = 0
+
+# Delay in milliseconds from sending a stop log request until closing the file.
+# Only relevant for log types that will send this request.
+# The file may be closed earlier if confirmation is received from the autopilot.
+# Default: 1000
+#LogCloseDelayMs = 1000
 
 # Auto-delete old log files until there's at least the configured amount of
 # bytes free on the storage device. Set to 0 to disable this functionality.
@@ -92,13 +108,18 @@
 # is defined. This also uses LogMode to control the recording.
 # Valid values: <true>, <false>
 # Default: <false>
-# LogTelemetry = false
+#LogTelemetry = false
+
+# Separate LogMode for tlog files.
+# Valid values: <Same as LogMode>
+# Default: <Same as LogMode>
+#TelemetryLogMode = <Same as LogMode>
 
 # Exclude MAVLink messages LOGGING_DATA, LOGGING_DATA_ACKED and LOGGING_ACK
 # from the telemetry log.
 # Valid values: <true>, <false>
 # Default: <false>
-# TelemetryIgnoreLoggingData = false
+#TelemetryIgnoreLoggingData = false
 
 
 ##
