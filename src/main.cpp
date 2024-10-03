@@ -53,9 +53,10 @@ static const struct option long_options[] = {{"endpoints", required_argument, nu
                                              {"verbose", no_argument, nullptr, 'v'},
                                              {"version", no_argument, nullptr, 'V'},
                                              {"sniffer-sysid", required_argument, nullptr, 's'},
+                                             {"enable-syslog", no_argument, nullptr, 'S'},
                                              {}};
 
-static const char *short_options = "he:rt:c:d:l:p:g:vV:s:T:";
+static const char *short_options = "he:rt:c:d:l:p:g:vV:s:T:S";
 
 static void help(FILE *fp)
 {
@@ -86,6 +87,7 @@ static void help(FILE *fp)
         "  -v --verbose                 Verbose. Same as --debug-log-level=debug\n"
         "  -V --version                 Show version\n"
         "  -s --sniffer-sysid           Sysid that all messages are sent to.\n"
+        "  -S --enable-syslog          Enable syslog uploading\n"
         "  -h --help                    Print this message\n",
         program_invocation_short_name);
 }
@@ -294,6 +296,9 @@ static int parse_argv(int argc, char *argv[], Configuration &config)
             free(ip);
             break;
         }
+        case 'S':
+            config.enable_syslog = true;
+            break;
         case 'c':
         case 'd':
         case 'V':

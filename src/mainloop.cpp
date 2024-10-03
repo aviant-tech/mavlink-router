@@ -446,6 +446,12 @@ bool Mainloop::add_endpoints(const Configuration &config)
             tlog_endpoint->mark_unfinished_logs();
             g_endpoints.emplace_back(tlog_endpoint);
         }
+
+        if (config.enable_syslog) {
+            auto syslog_endpoint = std::make_shared<SysLogEndpoint>(conf);
+            syslog_endpoint->start();
+            g_endpoints.emplace_back(syslog_endpoint);
+        }
     }
 
     // Apply other options
