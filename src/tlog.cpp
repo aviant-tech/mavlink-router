@@ -58,9 +58,12 @@ int TLog::write_msg(const struct buffer *buffer)
 
     if (_config.telemetry_ignore_logging_data) {
         // Silently ignore LOGGING_DATA MAVLink messages here, if configured.
-        if (buffer->curr.msg_id == MAVLINK_MSG_ID_LOGGING_DATA) return buffer->len;
-        if (buffer->curr.msg_id == MAVLINK_MSG_ID_LOGGING_DATA_ACKED) return buffer->len;
-        if (buffer->curr.msg_id == MAVLINK_MSG_ID_LOGGING_ACK) return buffer->len;
+        if (buffer->curr.msg_id == MAVLINK_MSG_ID_LOGGING_DATA)
+            return buffer->len;
+        if (buffer->curr.msg_id == MAVLINK_MSG_ID_LOGGING_DATA_ACKED)
+            return buffer->len;
+        if (buffer->curr.msg_id == MAVLINK_MSG_ID_LOGGING_ACK)
+            return buffer->len;
     }
 
     uint64_t ms_since_epoch = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -74,7 +77,8 @@ int TLog::write_msg(const struct buffer *buffer)
     return buffer->len;
 }
 
-LogMode TLog::_get_log_mode() const {
+LogMode TLog::_get_log_mode() const
+{
     if (_config.telemetry_log_mode == LogMode::default_mode) {
         return _config.log_mode;
     } else {

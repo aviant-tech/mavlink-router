@@ -30,12 +30,12 @@
 #define LOG_ENDPOINT_SYSTEM_ID 2
 
 enum class LogMode {
-    always = 0,  ///< Log from start until mavlink-router exits
-    while_armed, ///< Start logging when the vehicle is armed until it's disarmed
-    always_reset_disarm,  ///< Log always, but rotate file on disarm
+    always = 0,          ///< Log from start until mavlink-router exits
+    while_armed,         ///< Start logging when the vehicle is armed until it's disarmed
+    always_reset_disarm, ///< Log always, but rotate file on disarm
 
-    disabled, ///< Do not try to start logging (only used internally)
-    default_mode  ///< Use the default mode (only used internally)
+    disabled,    ///< Do not try to start logging (only used internally)
+    default_mode ///< Use the default mode (only used internally)
 };
 
 struct LogOptions {
