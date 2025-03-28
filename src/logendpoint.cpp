@@ -212,7 +212,8 @@ void LogEndpoint::_delete_old_logs()
                     // Use a low index for empty files, and a high one for non-empty.
                     // This causes empty files to be deleted first, even if
                     // older non-empty files exists.
-                    if (file_stat.st_size != 0) idx += 0x80000000;
+                    if (file_stat.st_size != 0)
+                        idx += 0x80000000;
                     file_map[idx] = std::make_tuple(str, file_stat.st_size);
                 }
             }
@@ -367,7 +368,7 @@ bool LogEndpoint::_post_stop()
 {
     if (_file == -1) {
         log_info("Log not started");
-        return false;  // False for do not reschedule
+        return false; // False for do not reschedule
     }
 
     Mainloop &mainloop = Mainloop::get_instance();
@@ -403,7 +404,7 @@ bool LogEndpoint::_post_stop()
         chmod(log_file, S_IRUSR | S_IRGRP | S_IROTH);
     }
     log_info("Finished logging to %s", _filename);
-    return false;  // False for do not reschedule
+    return false; // False for do not reschedule
 }
 
 void LogEndpoint::stop()
@@ -411,10 +412,10 @@ void LogEndpoint::stop()
     log_info("Preparing to stop logging to %s", _filename);
     unsigned long timeout = _pre_stop();
     if (timeout > 0) {
-        _timeout.logging_close = Mainloop::get_instance().add_timeout(
-            timeout,
-            std::bind(&LogEndpoint::_post_stop, this),
-            this);
+        _timeout.logging_close
+            = Mainloop::get_instance().add_timeout(timeout,
+                                                   std::bind(&LogEndpoint::_post_stop, this),
+                                                   this);
         if (!_timeout.logging_close) {
             log_error("Unable to add timeout for stop");
         }
@@ -435,7 +436,7 @@ void LogEndpoint::stop()
 bool LogEndpoint::_logging_stop_timeout()
 {
     stop();
-    return false;  // false for do not reschedule
+    return false; // false for do not reschedule
 }
 
 bool LogEndpoint::start()
@@ -553,8 +554,7 @@ void LogEndpoint::_handle_auto_start_stop(const struct buffer *pbuf)
     }
 
     // Other modes uses heartbeat to start/stop logging
-    if (pbuf->curr.msg_id != MAVLINK_MSG_ID_HEARTBEAT 
-        || pbuf->curr.src_sysid != _target_system_id
+    if (pbuf->curr.msg_id != MAVLINK_MSG_ID_HEARTBEAT || pbuf->curr.src_sysid != _target_system_id
         || pbuf->curr.src_compid != MAV_COMP_ID_AUTOPILOT1) {
         return;
     }
@@ -565,9 +565,9 @@ void LogEndpoint::_handle_auto_start_stop(const struct buffer *pbuf)
     // Stop the log if logging while armed and is now disarmed
     // OR if reset log on disarm mode, and just transitioned to disarm,
     // but do not do anything if a stop timeout is already running.
-    const bool should_stop_logging = _file != -1 && !is_armed &&
-        (_get_log_mode() == LogMode::while_armed ||
-            (_get_log_mode() == LogMode::always_reset_disarm && _last_armed));
+    const bool should_stop_logging = _file != -1 && !is_armed
+        && (_get_log_mode() == LogMode::while_armed
+            || (_get_log_mode() == LogMode::always_reset_disarm && _last_armed));
     const bool stop_in_progress = _timeout.logging_stop || _timeout.logging_close;
 
     if (should_stop_logging && !stop_in_progress) {

@@ -70,7 +70,7 @@ bool ULog::start()
     _buffer_index = 0;
     _buffer_partial_len = 0;
 
-    _logging_started = false;  // Will be set to true when request is sent to autopilot
+    _logging_started = false; // Will be set to true when request is sent to autopilot
 
     return true;
 }
@@ -167,11 +167,13 @@ int ULog::write_msg(const struct buffer *buffer)
             if (cmd.result == MAV_RESULT_ACCEPTED) {
                 _remove_logging_start_timeout();
                 if (!_start_alive_timeout()) {
-                    log_warning("Could not start liveness timeout - mavlink router log won't be able "
-                                "to detect if flight stack stopped");
+                    log_warning(
+                        "Could not start liveness timeout - mavlink router log won't be able "
+                        "to detect if flight stack stopped");
                 }
             } else {
-                log_error("MAV_CMD_LOGGING_START result(%u) is different than accepted", cmd.result);
+                log_error("MAV_CMD_LOGGING_START result(%u) is different than accepted",
+                          cmd.result);
             }
         } else if (cmd.command == MAV_CMD_LOGGING_STOP && cmd.result == MAV_RESULT_ACCEPTED) {
             _post_stop();
