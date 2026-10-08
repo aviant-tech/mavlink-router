@@ -515,6 +515,21 @@ bool LogEndpoint::_fsync()
     return true;
 }
 
+ssize_t LogEndpoint::_write_file(const void *buf, size_t len)
+{
+    // The coarse clock has a few ms resolution, which is plenty here, and is cheaper to read
+    struct timespec started, ended;
+    clock_gettime(CLOCK_MONOTONIC_COARSE, &started);
+    const ssize_t r = write(_file, buf, len);
+    clock_gettime(CLOCK_MONOTONIC_COARSE, &ended);
+
+    const usec_t took = ts_usec(&ended) - ts_usec(&started);
+    if (took > USEC_PER_SEC) {
+        log_warning("Writing %s was blocked for %.1f s", _filename, (double)took / USEC_PER_SEC);
+    }
+    return r;
+}
+
 void LogEndpoint::_remove_logging_start_timeout()
 {
     Mainloop::get_instance().del_timeout(_timeout.logging_start);

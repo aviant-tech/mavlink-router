@@ -203,7 +203,7 @@ void BinLog::_logging_data_process(mavlink_remote_log_data_block_t *msg)
         return;
     }
 
-    r = write(_file, msg->data, MAVLINK_MSG_REMOTE_LOG_DATA_BLOCK_FIELD_DATA_LEN);
+    r = _write_file(msg->data, MAVLINK_MSG_REMOTE_LOG_DATA_BLOCK_FIELD_DATA_LEN);
     if (r < 0 && errno != EAGAIN) {
         log_error("Error writing data (%m)");
         _restart();

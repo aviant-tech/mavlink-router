@@ -104,6 +104,9 @@ protected:
     bool _fsync();
     bool _logging_stop_timeout();
 
+    /** write() to the log file, warning if it blocks the main loop for over a second. */
+    ssize_t _write_file(const void *buf, size_t len);
+
     void _handle_auto_start_stop(const struct buffer *pbuf);
 
     virtual LogMode _get_log_mode() const { return _config.log_mode; }

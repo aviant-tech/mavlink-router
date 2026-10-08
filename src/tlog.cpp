@@ -69,8 +69,8 @@ int TLog::write_msg(const struct buffer *buffer)
 
     ms_since_epoch = htobe64(ms_since_epoch);
 
-    write(_file, (void *)&ms_since_epoch, sizeof(uint64_t));
-    write(_file, buffer->data, buffer->len);
+    _write_file(&ms_since_epoch, sizeof(uint64_t));
+    _write_file(buffer->data, buffer->len);
     return buffer->len;
 }
 
