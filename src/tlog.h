@@ -32,9 +32,10 @@ public:
 
     int write_msg(const struct buffer *pbuf) override;
     int flush_pending_msgs() override { return -ENOSYS; }
-    
+
     // Accept everything for tlog
-    Endpoint::AcceptState accept_msg(const struct buffer *pbuf) const override {
+    Endpoint::AcceptState accept_msg(const struct buffer *pbuf) const override
+    {
         return Endpoint::AcceptState::Accepted;
     }
 
